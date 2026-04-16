@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hibathulla Mohammed | Private Finance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/finance.css">
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <a class="brand" href="index.html">HIBATHULLA</a>
+      <nav class="nav" aria-label="Primary">
+        <a href="index.html">Home</a>
+        <a href="about.html">About</a>
+        <a href="project.html">Project</a>
+        <a href="mailto:hibathullaek18@gmail.com">Hire Me! -&gt;</a>
+      </nav>
+    </header>
+
+    <section class="layout">
+      <section class="hero">
+        <p class="eyebrow">Private Financial Dashboard</p>
+        <h1>Income, expenses, savings, and future focus.</h1>
+        <p>
+          This private page helps Hibathulla record monthly earnings, compare spending,
+          track target goals, and read logic-based advice that updates automatically.
+        </p>
+      </section>
+
+      <section class="summary-strip" aria-label="Summary">
+        <article class="summary-card">
+          <span>Monthly Earnings</span>
+          <strong id="earningsSummary">Rs. 0</strong>
+        </article>
+        <article class="summary-card">
+          <span>Monthly Expenses</span>
+          <strong id="expensesSummary">Rs. 0</strong>
+        </article>
+        <article class="summary-card">
+          <span>Monthly Savings</span>
+          <strong id="savingsSummary">Rs. 0</strong>
+        </article>
+      </section>
+
+      <section class="grid">
+        <section class="panel">
+          <p class="eyebrow">Data Entry</p>
+          <h2>Monthly tracker</h2>
+          <p>Enter one month at a time. Savings update immediately from earnings minus expenses.</p>
+
+          <form id="entryForm" class="form">
+            <div class="field-row">
+              <label>
+                Month
+                <input type="month" id="monthInput" required>
+              </label>
+              <label>
+                Monthly Earnings
+                <input type="number" id="earningsInput" min="0" placeholder="65000" required>
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label>
+                Monthly Expenses
+                <input type="number" id="expensesInput" min="0" placeholder="28000" required>
+              </label>
+              <label>
+                Savings
+                <input type="text" id="savingsInput" value="Rs. 0" readonly>
+              </label>
+            </div>
+
+            <button type="submit" class="button">Save Monthly Record</button>
+          </form>
+
+          <p class="mini-note">Latest records stay on this device using browser storage.</p>
+          <div id="historyList" class="list"></div>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">Target Column</p>
+          <h2>Editable goals</h2>
+          <p>Create income or savings targets, mark them complete, and revise them anytime.</p>
+
+          <form id="goalForm" class="form">
+            <label>
+              Goal title
+              <input type="text" id="goalTitle" placeholder="Reach Rs. 80,000 monthly income" required>
+            </label>
+            <label>
+              Goal details
+              <textarea id="goalDetail" placeholder="Explain the target, deadline, or strategy"></textarea>
+            </label>
+            <button type="submit" class="button">Add Goal</button>
+          </form>
+
+          <div id="goalList" class="list"></div>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">Automated Advice</p>
+          <h2>Monthly guidance</h2>
+          <p>Advice updates automatically based on how much you save compared with how much you earn.</p>
+          <div id="adviceStack" class="list"></div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const currency = new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0
+    });
+
+    const storageKeys = {
+      records: "hibathulla-finance-records",
+      goals: "hibathulla-finance-goals"
+    };
+
+    const defaultRecords = [
+      { month: "2026-02", earnings: 58000, expenses: 29000 },
+      { month: "2026-03", earnings: 64000, expenses: 30000 },
+      { month: "2026-04", earnings: 70000, expenses: 31500 }
+    ];
+
+    const defaultGoals = [
+      {
+        id: crypto.randomUUID(),
+        title: "Reach Rs. 80,000 monthly income",
+        detail: "Strengthen BRIGHTPATH revenue and add one more high-value service.",
+        done: false
+      },
+      {
+        id: crypto.randomUUID(),
+        title: "Keep savings above 40 percent",
+        detail: "Protect profit by reviewing non-essential spending every month.",
+        done: false
+      }
+    ];
+
+    const entryForm = document.getElementById("entryForm");
+    const goalForm = document.getElementById("goalForm");
+    const monthInput = document.getElementById("monthInput");
+    const earningsInput = document.getElementById("earningsInput");
+    const expensesInput = document.getElementById("expensesInput");
+    const savingsInput = document.getElementById("savingsInput");
+    const historyList = document.getElementById("historyList");
+    const goalList = document.getElementById("goalList");
+    const adviceStack = document.getElementById("adviceStack");
+    const earningsSummary = document.getElementById("earningsSummary");
+    const expensesSummary = document.getElementById("expensesSummary");
+    const savingsSummary = document.getElementById("savingsSummary");
+
+    function readStorage(key, fallback) {
+      try {
+        const saved = localStorage.getItem(key);
+        return saved ? JSON.parse(saved) : fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    let records = readStorage(storageKeys.records, defaultRecords);
+    let goals = readStorage(storageKeys.goals, defaultGoals);
+
+    function saveStorage() {
+      localStorage.setItem(storageKeys.records, JSON.stringify(records));
+      localStorage.setItem(storageKeys.goals, JSON.stringify(goals));
+    }
+
+    function formatMonth(monthValue) {
+      const [year, month] = monthValue.split("-");
+      return new Date(Number(year), Number(month) - 1).toLocaleDateString("en-IN", {
+        month: "long",
+        year: "numeric"
+      });
+    }
+
+    function updateSavingsPreview() {
+      const earnings = Number(earningsInput.value) || 0;
+      const expenses = Number(expensesInput.value) || 0;
+      savingsInput.value = currency.format(earnings - expenses);
+    }
+
+    function renderSummary() {
+      const latest = records
+        .slice()
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .at(-1) || { earnings: 0, expenses: 0 };
+
+      const savings = latest.earnings - latest.expenses;
+      earningsSummary.textContent = currency.format(latest.earnings);
+      expensesSummary.textContent = currency.format(latest.expenses);
+      savingsSummary.textContent = currency.format(savings);
+    }
+
+    function renderHistory() {
+      historyList.innerHTML = "";
+
+      records
+        .slice()
+        .sort((a, b) => b.month.localeCompare(a.month))
+        .forEach((record) => {
+          const item = document.createElement("article");
+          item.className = "item";
+          item.innerHTML = `
+            <strong>${formatMonth(record.month)}</strong>
+            <div class="meta">
+              Earnings: ${currency.format(record.earnings)}<br>
+              Expenses: ${currency.format(record.expenses)}<br>
+              Savings: ${currency.format(record.earnings - record.expenses)}
+            </div>
+          `;
+          historyList.appendChild(item);
+        });
+    }
+
+    function renderGoals() {
+      goalList.innerHTML = "";
+
+      goals.forEach((goal) => {
+        const item = document.createElement("article");
+        item.className = "goal-item";
+        item.innerHTML = `
+          <div class="goal-content">
+            <strong>${goal.title}</strong>
+            <div class="meta">${goal.detail || "No extra details added yet."}</div>
+            <span class="status-chip ${goal.done ? "done" : ""}">
+              ${goal.done ? "Completed" : "In Progress"}
+            </span>
+          </div>
+          <div class="goal-actions">
+            <button type="button" class="ghost-button" data-action="toggle" data-id="${goal.id}">
+              ${goal.done ? "Reopen" : "Complete"}
+            </button>
+            <button type="button" class="ghost-button" data-action="delete" data-id="${goal.id}">
+              Delete
+            </button>
+          </div>
+        `;
+        goalList.appendChild(item);
+      });
+    }
+
+    function buildAdviceCards() {
+      const latest = records
+        .slice()
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .at(-1);
+
+      if (!latest) {
+        return [
+          {
+            tone: "focus",
+            title: "Start with your first entry",
+            text: "Add a monthly earnings and expenses record to unlock personalized advice."
+          }
+        ];
+      }
+
+      const savings = latest.earnings - latest.expenses;
+      const ratio = latest.earnings > 0 ? savings / latest.earnings : 0;
+      const advice = [];
+
+      if (ratio >= 0.4) {
+        advice.push({
+          tone: "good",
+          title: "Great job saving this month!",
+          text: "Your savings rate is strong. Keep protecting this margin and consider reinvesting part of it into the highest-return opportunity."
+        });
+      } else if (ratio >= 0.2) {
+        advice.push({
+          tone: "focus",
+          title: "You are on a healthy path",
+          text: "You are saving a meaningful portion of your earnings. Tightening one or two recurring expenses could move you into an even stronger zone."
+        });
+      } else {
+        advice.push({
+          tone: "warn",
+          title: "Consider reviewing your expenses",
+          text: "Savings are relatively low compared with earnings. Review monthly spending categories and protect the money that should stay available for growth."
+        });
+      }
+
+      advice.push({
+        tone: "focus",
+        title: "Next smart move",
+        text: `Based on your latest month, aim to hold at least ${currency.format(Math.max(savings, latest.earnings * 0.25))} as savings before increasing optional expenses.`
+      });
+
+      const openGoals = goals.filter((goal) => !goal.done).length;
+      advice.push({
+        tone: openGoals > 0 ? "focus" : "good",
+        title: openGoals > 0 ? "Stay aligned with your targets" : "Targets are in great shape",
+        text: openGoals > 0
+          ? `You currently have ${openGoals} active goal${openGoals > 1 ? "s" : ""}. Review them with each monthly entry so your money decisions stay intentional.`
+          : "All current goals are marked complete. Add a new milestone to keep your growth moving."
+      });
+
+      return advice;
+    }
+
+    function renderAdvice() {
+      adviceStack.innerHTML = "";
+      buildAdviceCards().forEach((card) => {
+        const article = document.createElement("article");
+        article.className = `advice-card ${card.tone}`;
+        article.innerHTML = `
+          <strong>${card.title}</strong>
+          <div>${card.text}</div>
+        `;
+        adviceStack.appendChild(article);
+      });
+    }
+
+    function renderAll() {
+      saveStorage();
+      updateSavingsPreview();
+      renderSummary();
+      renderHistory();
+      renderGoals();
+      renderAdvice();
+    }
+
+    earningsInput.addEventListener("input", updateSavingsPreview);
+    expensesInput.addEventListener("input", updateSavingsPreview);
+
+    entryForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const month = monthInput.value;
+      const earnings = Number(earningsInput.value);
+      const expenses = Number(expensesInput.value);
+
+      if (!month || earnings < 0 || expenses < 0) {
+        return;
+      }
+
+      const existingIndex = records.findIndex((record) => record.month === month);
+      const record = { month, earnings, expenses };
+
+      if (existingIndex >= 0) {
+        records[existingIndex] = record;
+      } else {
+        records.push(record);
+      }
+
+      entryForm.reset();
+      savingsInput.value = currency.format(0);
+      renderAll();
+    });
+
+    goalForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const title = document.getElementById("goalTitle").value.trim();
+      const detail = document.getElementById("goalDetail").value.trim();
+
+      if (!title) {
+        return;
+      }
+
+      goals.unshift({
+        id: crypto.randomUUID(),
+        title,
+        detail,
+        done: false
+      });
+
+      goalForm.reset();
+      renderAll();
+    });
+
+    goalList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      const { action, id } = target.dataset;
+      if (!action || !id) {
+        return;
+      }
+
+      if (action === "toggle") {
+        goals = goals.map((goal) => goal.id === id ? { ...goal, done: !goal.done } : goal);
+      }
+
+      if (action === "delete") {
+        goals = goals.filter((goal) => goal.id !== id);
+      }
+
+      renderAll();
+    });
+
+    renderAll();
+  </script>
+</body>
+</html>
